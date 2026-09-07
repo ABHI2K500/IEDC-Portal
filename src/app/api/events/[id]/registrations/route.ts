@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { eventRegistrations, studentProfiles, eventAttendance } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -37,7 +37,8 @@ export async function GET(
           and(
             eq(eventRegistrations.eventId, id),
             eq(eventRegistrations.studentId, profile.id),
-            eq(eventRegistrations.role, "volunteer")
+            eq(eventRegistrations.role, "volunteer"),
+            isNull(eventRegistrations.cancelledAt)
           )
         );
       if (volunteerReg) {

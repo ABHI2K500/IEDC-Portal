@@ -19,7 +19,9 @@ import { EventDetail, Registration } from "./types";
 import { EventHeader } from "./_components/event-header";
 import { StatusActions } from "./_components/status-actions";
 import { EventRegistrationsTable } from "@/components/events/event-registrations-table";
+import { EventAnalytics } from "@/components/events/event-analytics";
 import { PosterUpload } from "@/components/events/poster-upload";
+import { VolunteerManager } from "./_components/volunteer-manager";
 import { useSession } from "@/lib/auth-client";
 
 export default function ExecomEventDetailPage() {
@@ -42,6 +44,8 @@ export default function ExecomEventDetailPage() {
   ];
   const userRole = (session?.user as Record<string, unknown> | undefined)?.role as string | undefined;
   const isExecom = userRole ? execomRoles.includes(userRole) : false;
+  // A student who was granted volunteer access to this specific event.
+  const isEventVolunteer = !isExecom && registeredRole === "volunteer";
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -56,7 +60,6 @@ export default function ExecomEventDetailPage() {
   const [editVolunteerPoints, setEditVolunteerPoints] = useState<number>(20);
   const [editPosterUrl, setEditPosterUrl] = useState("");
   const [editRegistrationDeadline, setEditRegistrationDeadline] = useState("");
-  const [editVolunteerEmails, setEditVolunteerEmails] = useState("");
 
   const startEdit = () => {
     if (!event) return;
@@ -78,7 +81,6 @@ export default function ExecomEventDetailPage() {
     setEditVolunteerPoints(event.volunteerPoints || 20);
     setEditPosterUrl(event.posterUrl || "");
     setEditRegistrationDeadline(event.registrationDeadline ? formatForInput(event.registrationDeadline) : "");
-    setEditVolunteerEmails(event.volunteerEmails?.join(", ") || "");
     setIsEditing(true);
     setMessage("");
   };
@@ -100,7 +102,6 @@ export default function ExecomEventDetailPage() {
         participationPoints: Number(editParticipationPoints),
         volunteerPoints: Number(editVolunteerPoints),
         posterUrl: editPosterUrl || null,
-        volunteerEmails: editVolunteerEmails.split(",").map((email) => email.trim()).filter(Boolean),
       };
 
       const res = await fetch(`/api/events/${params.id}`, {
@@ -186,6 +187,28 @@ export default function ExecomEventDetailPage() {
       setRegMessage("Something went wrong");
     } finally {
       setRegistering(false);
+    }
+  };
+
+  // Re-pulls event totals + registrations, e.g. after the volunteer roster changes.
+  const refreshEventData = async () => {
+    try {
+      const [eventRes, regRes] = await Promise.all([
+        fetch(`/api/events/${params.id}`),
+        fetch(`/api/events/${params.id}/registrations`),
+      ]);
+      if (eventRes.ok) {
+        const data = await eventRes.json();
+        setEvent(data);
+        setRegistered(data.registered || false);
+        setRegisteredRole(data.registeredRole || null);
+      }
+      if (regRes.ok) {
+        const regData = await regRes.json();
+        setRegistrations(regData.registrations || []);
+      }
+    } catch (error) {
+      console.error("Failed to refresh event:", error);
     }
   };
 
@@ -439,7 +462,7 @@ export default function ExecomEventDetailPage() {
         <form onSubmit={saveEventDetails} className="bg-white rounded-[32px] border border-gray-100/80 p-8 md:p-10 shadow-sm space-y-6">
           <div className="border-b border-gray-100 pb-4">
             <h2 className="text-2xl font-extrabold text-[#1A0D0C]">Edit Event Details</h2>
-            <p className="text-xs text-gray-400 font-medium">Update event metadata, points allocation, schedule, and volunteer emails.</p>
+            <p className="text-xs text-gray-400 font-medium">Update event metadata, points allocation, and schedule.</p>
           </div>
 
           {message && (
@@ -527,11 +550,6 @@ export default function ExecomEventDetailPage() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="editVolunteers" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Volunteer Emails (comma-separated)</Label>
-            <Textarea id="editVolunteers" value={editVolunteerEmails} onChange={(e) => setEditVolunteerEmails(e.target.value)} placeholder="email1@sjcetpalai.ac.in, email2@sjcetpalai.ac.in" rows={3} className="resize-none rounded-xl border-gray-200 bg-gray-50/50 focus:bg-white" />
-          </div>
-
           <div className="flex gap-3 pt-4 justify-end">
             <Button type="button" variant="outline" className="rounded-full px-6 h-11 text-xs font-bold border-gray-200" onClick={() => setIsEditing(false)} disabled={updating}>
               Cancel
@@ -612,7 +630,26 @@ export default function ExecomEventDetailPage() {
             />
           )}
 
+          {isExecom && (
+            <VolunteerManager
+              eventId={event.id}
+              onVolunteersChanged={refreshEventData}
+            />
+          )}
+
+          {(isExecom || isEventVolunteer) && (
+            <EventAnalytics
+              eventId={event.id}
+              subtitle={
+                isEventVolunteer
+                  ? "You have volunteer access to this event — view analytics and scan participant QR codes."
+                  : undefined
+              }
+            />
+          )}
+
           <EventRegistrationsTable
+            canExport={isExecom}
             eventId={event.id}
             eventTitle={event.title}
             eventType={event.eventType}

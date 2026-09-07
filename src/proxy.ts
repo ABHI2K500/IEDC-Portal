@@ -125,7 +125,7 @@ export async function proxy(request: NextRequest) {
 
         if (profile) {
           const { eventRegistrations } = await import("@/db/schema");
-          const { and } = await import("drizzle-orm");
+          const { and, isNull } = await import("drizzle-orm");
 
           const [volunteerReg] = await db
             .select()
@@ -134,7 +134,8 @@ export async function proxy(request: NextRequest) {
               and(
                 eq(eventRegistrations.eventId, eventId),
                 eq(eventRegistrations.studentId, profile.id),
-                eq(eventRegistrations.role, "volunteer")
+                eq(eventRegistrations.role, "volunteer"),
+                isNull(eventRegistrations.cancelledAt)
               )
             );
           if (volunteerReg) {

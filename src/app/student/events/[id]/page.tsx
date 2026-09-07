@@ -8,6 +8,7 @@ import { EventDetail } from "./types";
 import { StudentEventHeader } from "./_components/student-event-header";
 import { StudentRegistrationAction } from "./_components/student-registration-action";
 import { EventRegistrationsTable } from "@/components/events/event-registrations-table";
+import { EventAnalytics } from "@/components/events/event-analytics";
 import { useSession } from "@/lib/auth-client";
 
 export default function EventDetailPage() {
@@ -143,7 +144,15 @@ export default function EventDetailPage() {
       />
 
       {registeredRole === "volunteer" && (
+        <EventAnalytics
+          eventId={event.id}
+          subtitle="You are a volunteer for this event — view its analytics and scan participant QR codes."
+        />
+      )}
+
+      {registeredRole === "volunteer" && (
         <EventRegistrationsTable
+          canExport={false}
           eventId={event.id}
           eventTitle={event.title}
           eventType={event.eventType}
