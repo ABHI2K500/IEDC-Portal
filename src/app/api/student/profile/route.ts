@@ -6,12 +6,20 @@ import { eq, count, or } from "drizzle-orm";
 import { generateIEDCId, getDeptCode } from "@/lib/iedc-id";
 import { generateQRDataURL } from "@/lib/qr";
 import { NextResponse } from "next/server";
+import { getRoleLabel, isAdminRole, isNodalOfficer } from "@/lib/roles";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const isUUID = (val: string | null): val is string => {
   return typeof val === "string" && UUID_REGEX.test(val);
 };
+
+/** Display designation for staff accounts that have no profile designation yet. */
+function defaultDesignationFor(role: string): string {
+  if (isNodalOfficer(role)) return getRoleLabel(role);
+  if (role === "cto") return "CTO (Chief Technical Officer)";
+  return `${role.toUpperCase()} Member`;
+}
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
@@ -118,7 +126,7 @@ export async function GET(request: Request) {
     const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
     const userName = (user?.name && user.name !== "User" && user.name !== "")
       ? user.name
-      : (role === "cto" ? "Tims Tittus" : (session.user.name || "Execom User"));
+      : (role === "cto" ? "Tims Tittus" : (session.user.name || (isNodalOfficer(role) ? "Nodal Officer" : "Execom User")));
 
     if (role === "cto" && (!user?.name || user.name === "User" || user.name === "")) {
       await db.update(users).set({ name: "Tims Tittus" }).where(eq(users.id, session.user.id));
@@ -132,8 +140,8 @@ export async function GET(request: Request) {
     if (!profile) {
       const roleUpper = role.toUpperCase();
       const defaultIecdId = await generateIEDCId(roleUpper, 2026);
-      const defaultAdmissionNumber = `EXECOM-${roleUpper}-${session.user.id.slice(0, 6).toUpperCase()}`;
-      const defaultDesignation = role === "cto" ? "CTO (Chief Technical Officer)" : `${roleUpper} Member`;
+      const staffPrefix = isNodalOfficer(role) ? "NODAL" : "EXECOM";
+      const defaultAdmissionNumber = `${staffPrefix}-${roleUpper}-${session.user.id.slice(0, 6).toUpperCase()}`;
 
       try {
         const [newProfile] = await db
@@ -146,7 +154,11 @@ export async function GET(request: Request) {
             department: "CSE",
             batch: "2026",
             phone: "",
-            bio: role === "cto" ? "Chief Technical Officer at IEDC SJCET" : `Execom Member (${roleUpper}) at IEDC SJCET`,
+            bio: isNodalOfficer(role)
+              ? "Nodal Officer at IEDC SJCET"
+              : role === "cto"
+                ? "Chief Technical Officer at IEDC SJCET"
+                : `Execom Member (${roleUpper}) at IEDC SJCET`,
             qrHmacSecret: crypto.randomUUID(),
           })
           .returning();
@@ -174,7 +186,7 @@ export async function GET(request: Request) {
         userId: profile.userId,
         name: userName,
         role,
-        designation: profile.bio || (role === "cto" ? "CTO (Chief Technical Officer)" : `${role.toUpperCase()} Member`),
+        designation: profile.bio || defaultDesignationFor(role),
         eventsParticipatedCount: Number(eventsRes?.count || 0),
         projectsCount: Number(projectsRes?.count || 0),
         certificatesCount: Number(certsRes?.count || 0),
@@ -187,7 +199,7 @@ export async function GET(request: Request) {
       name: userName,
       email: user?.email || session.user.email,
       role,
-      designation: role === "cto" ? "CTO (Chief Technical Officer)" : `${role.toUpperCase()} Member`,
+      designation: defaultDesignationFor(role),
       department: "CSE",
       batch: "2026",
       iecdId: `IEDC-2026-${role.toUpperCase()}-00001`,
@@ -206,7 +218,7 @@ export async function PUT(request: Request) {
   const role = (session.user as Record<string, unknown>).role as string;
   const body = await request.json();
 
-  if (role === "student" || role === "faculty" || role === "cto" || ["ceo", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"].includes(role)) {
+  if (role === "student" || role === "faculty" || isAdminRole(role)) {
     if (body.name && typeof body.name === "string" && body.name.trim()) {
       await db
         .update(users)
@@ -286,7 +298,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({
         ...safe,
         role,
-        designation: profile.bio || (role === "cto" ? "CTO (Chief Technical Officer)" : `${role.toUpperCase()} Member`),
+        designation: profile.bio || defaultDesignationFor(role),
       });
     }
 

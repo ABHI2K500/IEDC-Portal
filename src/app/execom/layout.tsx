@@ -3,14 +3,12 @@
 import {
   Sidebar,
   execomNavItems,
+  nodalNavItems,
   studentNavItems,
 } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useSession } from "@/lib/auth-client";
-
-const execomRoles = [
-  "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-];
+import { isExecomRole, isNodalOfficer } from "@/lib/roles";
 
 export default function ExecomLayout({
   children,
@@ -24,10 +22,17 @@ export default function ExecomLayout({
   // Execom links they cannot open.
   const userRole = (session?.user as Record<string, unknown> | undefined)
     ?.role as string | undefined;
-  const isExecom = isPending || !userRole || execomRoles.includes(userRole);
+  const isNodal = isNodalOfficer(userRole);
+  const isExecom = isPending || !userRole || isExecomRole(userRole);
 
-  const navItems = isExecom ? execomNavItems : studentNavItems;
-  const navRole = isExecom ? "execom" : "student";
+  // The proxy sends the Nodal Officer to the mirrored /nodal route, but keep their
+  // navigation correct if they ever render an Execom screen directly.
+  const navItems = isNodal
+    ? nodalNavItems
+    : isExecom
+      ? execomNavItems
+      : studentNavItems;
+  const navRole = isNodal ? "nodal_officer" : isExecom ? "execom" : "student";
 
   return (
     <div className="min-h-screen bg-[#F6F5F3]">

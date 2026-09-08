@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Clock, MapPin, Users, TrendingUp, UserCheck, QrCode } from "lucide-react";
 import Link from "next/link";
 import { EventDetail } from "../types";
+import { useAdminSection } from "@/lib/admin-section";
 
 interface EventHeaderProps {
   event: EventDetail;
@@ -19,6 +20,7 @@ const statusColors: Record<string, string> = {
 };
 
 export function EventHeader({ event }: EventHeaderProps) {
+  const { base } = useAdminSection();
   const start = new Date(event.startDatetime);
   const end = new Date(event.endDatetime);
 
@@ -53,7 +55,7 @@ export function EventHeader({ event }: EventHeaderProps) {
             >
               {event.status}
             </span>
-            <Link href={`/execom/events/${event.id}/scan`}>
+            <Link href={`${base}/events/${event.id}/scan`}>
               <Button size="sm" className="h-[42px] px-5 rounded-full bg-[#100A0A] text-white hover:bg-[#2A2020] text-xs font-semibold cursor-pointer shadow-sm transition-all flex items-center gap-2">
                 <QrCode className="w-4 h-4" />
                 Scan QR

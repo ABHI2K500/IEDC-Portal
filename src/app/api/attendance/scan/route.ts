@@ -6,6 +6,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { verifyDynamicQRPayload, decryptPayload } from "@/lib/qr";
 import { awardPoints } from "@/lib/points";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 const CIPHER_PREFIX = "IEDC:";
 
@@ -15,12 +16,9 @@ export async function POST(request: Request) {
 
   const { qrData, eventId } = await request.json();
 
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
   const userRole = (session.user as Record<string, unknown>).role as string;
 
-  let hasAccess = execomRoles.includes(userRole);
+  let hasAccess = isAdminRole(userRole);
 
   if (!hasAccess) {
     const [profile] = await db

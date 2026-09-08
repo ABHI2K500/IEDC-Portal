@@ -5,32 +5,18 @@ import { createClient as createSupabaseClient } from "@/utils/supabase/middlewar
 import { db } from "@/db";
 import { studentProfiles, allowedStaffEmails, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
-export const execomRoles = [
-  "ceo",
-  "cto",
-  "to",
-  "cfo",
-  "fo",
-  "cco",
-  "co",
-  "cio",
-  "io",
-  "cmo",
-  "mo",
-  "coo",
-  "oo",
-  "cso",
-  "so",
-  "cvo",
-  "vo",
-  "cwit",
-  "wit",
-];
+import {
+  EXECOM_ROLES,
+  NODAL_OFFICER_ROLE,
+  getDashboardForRole,
+  isExecomRole,
+  isNodalOfficer,
+} from "@/lib/roles";
 
 const protectedRoutes: Record<string, string[]> = {
   "/student": ["student"],
-  "/execom": execomRoles,
+  "/execom": [...EXECOM_ROLES],
+  "/nodal": [NODAL_OFFICER_ROLE],
   "/faculty": ["faculty"],
 };
 
@@ -53,7 +39,7 @@ export async function proxy(request: NextRequest) {
     const email = session.user.email;
     const isCollegeEmail =
       email.endsWith("@sjcetpalai.ac.in") ||
-      email.endsWith(".sjcetpalai.ac.in") 
+      email.endsWith(".sjcetpalai.ac.in")
     if (!isCollegeEmail) {
       return NextResponse.redirect(
         new URL("/auth/login?error=Only SJCET college email IDs are allowed.", request.url)
@@ -106,18 +92,32 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(dashboardUrl, request.url));
   }
 
-  // Intercept specific event management & scan routes to allow chiefs and event volunteers
-  const eventIdMatch = pathname.match(/^\/execom\/events\/([a-zA-Z0-9-]+)(?:\/scan)?$/);
+  // Intercept specific event management & scan routes to allow chiefs and event volunteers.
+  // Both the Execom and the Nodal Officer workspaces expose the same screens.
+  const eventIdMatch = pathname.match(
+    /^\/(execom|nodal)\/events\/([a-zA-Z0-9-]+)(?:\/scan)?$/
+  );
   if (eventIdMatch) {
-    const eventId = eventIdMatch[1];
+    const section = eventIdMatch[1];
+    const eventId = eventIdMatch[2];
     if (eventId !== "create") {
       if (!session) {
         return NextResponse.redirect(new URL("/auth/login", request.url));
       }
       const role = (session.user as Record<string, unknown>).role as string;
-      let allowed = execomRoles.includes(role);
 
-      if (!allowed) {
+      // The Nodal Officer owns the mirrored /nodal screens — send them there so the
+      // workspace navigation stays consistent instead of failing the Execom check.
+      if (section === "execom" && isNodalOfficer(role)) {
+        return NextResponse.redirect(
+          new URL(pathname.replace("/execom", "/nodal"), request.url)
+        );
+      }
+
+      let allowed =
+        section === "nodal" ? isNodalOfficer(role) : isExecomRole(role);
+
+      if (!allowed && section === "execom") {
         const [profile] = await db
           .select({ id: studentProfiles.id })
           .from(studentProfiles)
@@ -165,6 +165,13 @@ export async function proxy(request: NextRequest) {
       }
       const role = (session.user as Record<string, unknown>).role as string;
       if (!allowedRoles.includes(role)) {
+        // Every Execom screen is mirrored under /nodal, so keep the Nodal Officer on
+        // the page they asked for instead of bouncing them to their dashboard.
+        if (prefix === "/execom" && isNodalOfficer(role)) {
+          return NextResponse.redirect(
+            new URL(pathname.replace("/execom", "/nodal"), request.url)
+          );
+        }
         const dashboardUrl = getDashboardForRole(role);
         return NextResponse.redirect(new URL(dashboardUrl, request.url));
       }
@@ -174,24 +181,11 @@ export async function proxy(request: NextRequest) {
   return supabaseResponse;
 }
 
-function getDashboardForRole(role: string): string {
-  if (execomRoles.includes(role)) {
-    return "/execom/analytics";
-  }
-  switch (role) {
-    case "student":
-      return "/student/dashboard";
-    case "faculty":
-      return "/faculty/reports";
-    default:
-      return "/student/dashboard";
-  }
-}
-
 export const config = {
   matcher: [
     "/student/:path*",
     "/execom/:path*",
+    "/nodal/:path*",
     "/faculty/:path*",
     "/auth/login",
     "/auth/register",

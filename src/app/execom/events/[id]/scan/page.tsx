@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle2, XCircle, ArrowLeft, Loader2, QrCode, Sparkles } from "lucide-react";
 import type { IScannerControls } from "@zxing/browser";
 import Link from "next/link";
+import { useAdminSection } from "@/lib/admin-section";
 
 interface ScanResult {
   success: boolean;
@@ -15,6 +16,7 @@ interface ScanResult {
 
 export default function ExecomScanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params);
+  const { base } = useAdminSection();
 
   const [scanning, setScanning] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -153,7 +155,7 @@ export default function ExecomScanPage({ params }: { params: Promise<{ id: strin
     <div className="space-y-6 max-w-lg mx-auto pb-16 font-['Hanken_Grotesk'] text-[#1A0D0C]">
       {/* Top back button */}
       <Link
-        href={`/execom/events/${eventId}`}
+        href={`${base}/events/${eventId}`}
         className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white border border-gray-100/80 shadow-sm text-xs font-semibold text-gray-600 hover:text-[#100A0A] hover:bg-gray-50/80 transition-all cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />

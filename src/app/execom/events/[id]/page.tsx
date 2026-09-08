@@ -23,8 +23,11 @@ import { EventAnalytics } from "@/components/events/event-analytics";
 import { PosterUpload } from "@/components/events/poster-upload";
 import { VolunteerManager } from "./_components/volunteer-manager";
 import { useSession } from "@/lib/auth-client";
+import { isAdminRole } from "@/lib/roles";
+import { useAdminSection } from "@/lib/admin-section";
 
 export default function ExecomEventDetailPage() {
+  const { base } = useAdminSection();
   const params = useParams();
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -39,13 +42,11 @@ export default function ExecomEventDetailPage() {
   const [registering, setRegistering] = useState(false);
   const [regMessage, setRegMessage] = useState("");
 
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
   const userRole = (session?.user as Record<string, unknown> | undefined)?.role as string | undefined;
-  const isExecom = userRole ? execomRoles.includes(userRole) : false;
+  // Execom and the Nodal Officer both manage events; the Nodal Officer outranks Execom.
+  const canManage = isAdminRole(userRole);
   // A student who was granted volunteer access to this specific event.
-  const isEventVolunteer = !isExecom && registeredRole === "volunteer";
+  const isEventVolunteer = !canManage && registeredRole === "volunteer";
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -428,7 +429,7 @@ export default function ExecomEventDetailPage() {
         <p className="text-gray-500 font-semibold text-lg">Event not found</p>
         <Button
           className="rounded-full bg-[#100A0A] text-white hover:bg-[#2A2020] px-6 h-11 text-xs font-semibold cursor-pointer"
-          onClick={() => router.push(isExecom ? "/execom/events" : "/student/events")}
+          onClick={() => router.push(canManage ? `${base}/events` : "/student/events")}
         >
           Return to Events List
         </Button>
@@ -441,13 +442,13 @@ export default function ExecomEventDetailPage() {
       {/* Top action bar */}
       <div className="flex items-center justify-between">
         <Link
-          href={isExecom ? "/execom/events" : "/student/events"}
+          href={canManage ? `${base}/events` : "/student/events"}
           className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white border border-gray-100/80 shadow-sm text-xs font-semibold text-gray-600 hover:text-[#100A0A] hover:bg-gray-50/80 transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to events</span>
         </Link>
-        {isExecom && !isEditing && event.status !== "completed" && (
+        {canManage && !isEditing && event.status !== "completed" && (
           <Button
             className="h-[44px] px-6 rounded-full bg-[#D9383A] text-white text-xs font-bold shadow-sm hover:bg-[#b82b2d] active:scale-98 transition-all cursor-pointer flex items-center gap-2"
             onClick={startEdit}
@@ -458,7 +459,7 @@ export default function ExecomEventDetailPage() {
         )}
       </div>
 
-      {isEditing && isExecom ? (
+      {isEditing && canManage ? (
         <form onSubmit={saveEventDetails} className="bg-white rounded-[32px] border border-gray-100/80 p-8 md:p-10 shadow-sm space-y-6">
           <div className="border-b border-gray-100 pb-4">
             <h2 className="text-2xl font-extrabold text-[#1A0D0C]">Edit Event Details</h2>
@@ -583,7 +584,7 @@ export default function ExecomEventDetailPage() {
                     <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
                     <span>Registered as Volunteer</span>
                   </div>
-                  <Link href={`/execom/events/${params.id}/scan`}>
+                  <Link href={`${base}/events/${params.id}/scan`}>
                     <Button className="h-11 px-6 rounded-full bg-[#100A0A] hover:bg-[#2A2020] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm active:scale-98 transition-all">
                       <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>Scan QR Code</span>
@@ -596,7 +597,7 @@ export default function ExecomEventDetailPage() {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>Registered as Participant</span>
                   </div>
-                  {isExecom && event.status !== "completed" && event.status !== "cancelled" && (!event.endDatetime || new Date() <= new Date(event.endDatetime)) && (
+                  {canManage && event.status !== "completed" && event.status !== "cancelled" && (!event.endDatetime || new Date() <= new Date(event.endDatetime)) && (
                     <Button
                       onClick={() => handleCancelRegistration()}
                       disabled={registering}
@@ -621,7 +622,7 @@ export default function ExecomEventDetailPage() {
             </div>
           )}
 
-          {isExecom && (
+          {canManage && (
             <StatusActions
               event={event}
               updating={updating}
@@ -630,14 +631,14 @@ export default function ExecomEventDetailPage() {
             />
           )}
 
-          {isExecom && (
+          {canManage && (
             <VolunteerManager
               eventId={event.id}
               onVolunteersChanged={refreshEventData}
             />
           )}
 
-          {(isExecom || isEventVolunteer) && (
+          {(canManage || isEventVolunteer) && (
             <EventAnalytics
               eventId={event.id}
               subtitle={
@@ -649,7 +650,7 @@ export default function ExecomEventDetailPage() {
           )}
 
           <EventRegistrationsTable
-            canExport={isExecom}
+            canExport={canManage}
             eventId={event.id}
             eventTitle={event.title}
             eventType={event.eventType}

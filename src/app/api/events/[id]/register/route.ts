@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { eventRegistrations, events, studentProfiles } from "@/db/schema";
 import { eq, and, count, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
@@ -28,13 +29,9 @@ export async function POST(
     .from(studentProfiles)
     .where(eq(studentProfiles.userId, session.user.id));
 
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
-
   if (!profile) {
     const userRole = (session.user as Record<string, unknown>).role as string;
-    if (execomRoles.includes(userRole || "")) {
+    if (isAdminRole(userRole)) {
       try {
         const { generateIEDCId } = await import("@/lib/iedc-id");
         const { generateQRSecret, generateQRDataURL } = await import("@/lib/qr");

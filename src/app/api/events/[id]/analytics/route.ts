@@ -152,6 +152,8 @@ export async function GET(
       recentScans,
       viewer: {
         isExecom: access.isExecom,
+        isNodal: access.isNodal,
+        canManage: access.canManage,
         isVolunteer: access.isVolunteer,
       },
     });

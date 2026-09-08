@@ -34,6 +34,9 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth-client";
+import { useAdminSection } from "@/lib/admin-section";
+import { NODAL_OFFICER_ROLE, isNodalOfficer } from "@/lib/roles";
 
 interface StaffEmail {
   id: string;
@@ -80,6 +83,13 @@ const EXECOM_ROLES_LIST = [
   { value: "wit", label: "WIT (Women in Tech)", category: "officer" },
 ];
 
+/** Roles the Nodal Officer can hand out, grouped for the assignment dropdown. */
+const GOVERNANCE_ROLES_LIST = [
+  { value: NODAL_OFFICER_ROLE, label: "Nodal Officer (Super Admin)" },
+  { value: "faculty", label: "Faculty Member" },
+  { value: "student", label: "Student" },
+];
+
 const STAFF_FILTER_ITEMS = [
   { key: "all", label: "All Whitelisted Roles" },
   { key: "faculty", label: "Faculty" },
@@ -95,7 +105,19 @@ const REGISTERED_FILTER_ITEMS = [
 ];
 
 export default function ExecomUsersPage() {
-  const [mainTab, setMainTab] = useState<"whitelist" | "directory">("whitelist");
+  // `isNodalWorkspace` follows the URL (/nodal vs /execom); `isNodal` below
+  // follows the signed-in role and is what gates the privileged controls.
+  const { isNodal: isNodalWorkspace } = useAdminSection();
+  const { data: session } = useSession();
+  const currentRole = (session?.user as Record<string, unknown> | undefined)
+    ?.role as string | undefined;
+  // Role assignment is the Nodal Officer's power alone — gated by role, not by
+  // route, and enforced again by PATCH /api/users/role.
+  const isNodal = isNodalOfficer(currentRole);
+
+  const [mainTab, setMainTab] = useState<"whitelist" | "directory" | "roles">(
+    "whitelist"
+  );
 
   // Whitelist state
   const [staffEmails, setStaffEmails] = useState<StaffEmail[]>([]);
@@ -114,6 +136,13 @@ export default function ExecomUsersPage() {
   const [regLoading, setRegLoading] = useState(true);
   const [regSearchQuery, setRegSearchQuery] = useState("");
   const [regActiveTab, setRegActiveTab] = useState("all");
+
+  // Role assignment state (Nodal Officer only)
+  const [assignEmail, setAssignEmail] = useState("");
+  const [assignRole, setAssignRole] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
+  const [assignSuccess, setAssignSuccess] = useState("");
 
   useEffect(() => {
     fetchStaff();
@@ -207,6 +236,48 @@ export default function ExecomUsersPage() {
     }
   }
 
+  async function submitRoleAssignment(e: React.FormEvent) {
+    e.preventDefault();
+    setAssigning(true);
+    setAssignError("");
+    setAssignSuccess("");
+
+    const cleanEmail = assignEmail.trim().toLowerCase();
+
+    try {
+      const res = await fetch("/api/users/role", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, role: assignRole }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAssignSuccess(
+          data.message || `${cleanEmail} is now ${getRoleLabel(assignRole)}.`
+        );
+        setAssignEmail("");
+        setAssignRole("");
+        // The whitelist mirrors staff assignments, so refresh both views.
+        fetchRegisteredUsers();
+        fetchStaff();
+      } else {
+        setAssignError(data.error || "Failed to assign role");
+      }
+    } catch {
+      setAssignError("Something went wrong while assigning the role");
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  function startRoleAssignment(email: string) {
+    setAssignEmail(email);
+    setAssignError("");
+    setAssignSuccess("");
+    setMainTab("roles");
+  }
+
   const getRoleCategory = (roleValue: string) => {
     if (roleValue === "faculty") return "faculty";
     const found = EXECOM_ROLES_LIST.find((r) => r.value === roleValue);
@@ -214,6 +285,7 @@ export default function ExecomUsersPage() {
   };
 
   const getRoleLabel = (roleValue: string) => {
+    if (roleValue === NODAL_OFFICER_ROLE) return "Nodal Officer";
     if (roleValue === "faculty") return "Faculty Member";
     if (roleValue === "student") return "Student";
     const found = EXECOM_ROLES_LIST.find((r) => r.value === roleValue);
@@ -221,6 +293,9 @@ export default function ExecomUsersPage() {
   };
 
   const getRoleBadgeStyle = (roleValue: string) => {
+    if (roleValue === NODAL_OFFICER_ROLE) {
+      return "bg-amber-50 text-amber-700 border-amber-200/60 font-bold uppercase";
+    }
     if (roleValue === "faculty") {
       return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
     }
@@ -276,6 +351,16 @@ export default function ExecomUsersPage() {
     return true;
   });
 
+  // Matches the typed email against the directory so the officer sees exactly who
+  // they are about to change before submitting.
+  const assignTarget = registeredUsers.find(
+    (u) => u.email.toLowerCase() === assignEmail.trim().toLowerCase()
+  );
+
+  const governanceUsers = registeredUsers.filter(
+    (u) => u.role !== "student"
+  );
+
   const facultyCount = staffEmails.filter((s) => s.role === "faculty").length;
   const cSuiteCount = staffEmails.filter((s) => getRoleCategory(s.role) === "c-suite").length;
   const officerCount = staffEmails.filter((s) => getRoleCategory(s.role) === "officer").length;
@@ -287,7 +372,8 @@ export default function ExecomUsersPage() {
         <div className="z-10 max-w-xl space-y-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="px-3 py-0.5 rounded-full bg-[#D9383A]/10 text-[#D9383A] text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" /> Execom Governance
+              <ShieldCheck className="w-3.5 h-3.5" />{" "}
+              {isNodalWorkspace ? "Nodal Governance" : "Execom Governance"}
             </span>
           </div>
           <h1 className="text-[36px] md:text-[46px] font-semibold text-[#1A0D0C] tracking-[-1.38px] leading-tight">
@@ -350,6 +436,22 @@ export default function ExecomUsersPage() {
             {registeredUsers.length}
           </span>
         </button>
+
+        {isNodal && (
+          <button
+            type="button"
+            onClick={() => setMainTab("roles")}
+            className={cn(
+              "flex-1 py-3 px-5 rounded-[22px] text-sm font-bold transition-all flex items-center justify-center gap-2.5 cursor-pointer",
+              mainTab === "roles"
+                ? "bg-white text-[#1A0D0C] shadow-sm border border-gray-100"
+                : "text-gray-600 hover:text-[#1A0D0C] hover:bg-white/50"
+            )}
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-600" />
+            <span>Role Assignment</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: WHITELIST MANAGEMENT */}
@@ -749,6 +851,17 @@ export default function ExecomUsersPage() {
                     </div>
 
                     <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-gray-100">
+                      {isNodal && (
+                        <button
+                          type="button"
+                          onClick={() => startRoleAssignment(user.email)}
+                          className="px-3 py-1.5 rounded-full border border-amber-200/70 bg-amber-50/70 text-[11px] font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Assign Role
+                        </button>
+                      )}
+
                       {user.studentPoints !== undefined && user.studentPoints !== null && (
                         <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/60 px-3 py-1 rounded-full text-xs font-bold text-amber-700">
                           <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -792,6 +905,256 @@ export default function ExecomUsersPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB 3: ROLE ASSIGNMENT — Nodal Officer only */}
+      {mainTab === "roles" && isNodal && (
+        <>
+          <div className="max-w-[1014px] bg-white rounded-[38px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6 relative overflow-hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-[#1A0D0C] tracking-tight">
+                  Assign Role to a Portal Account
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Enter an email that already exists on the portal and grant it a new role. The change is written to the user record and applies on their next request.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={submitRoleAssignment} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="md:col-span-5 space-y-2">
+                  <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider ml-1">
+                    Registered Portal Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-4 top-3.5 text-gray-400 pointer-events-none" />
+                    <Input
+                      value={assignEmail}
+                      onChange={(e) => setAssignEmail(e.target.value)}
+                      list="portal-account-emails"
+                      className="h-[50px] rounded-2xl border-gray-200 bg-gray-50/50 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm text-[#1A0D0C] transition-all pl-11 pr-4"
+                      placeholder="member@sjcetpalai.ac.in"
+                      type="email"
+                      required
+                    />
+                    <datalist id="portal-account-emails">
+                      {registeredUsers.map((u) => (
+                        <option key={u.id} value={u.email}>
+                          {u.name || "Unnamed"} — {getRoleLabel(u.role)}
+                        </option>
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+
+                <div className="md:col-span-4 space-y-2">
+                  <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider ml-1">
+                    New Role
+                  </Label>
+                  <Select value={assignRole} onValueChange={setAssignRole}>
+                    <SelectTrigger className="h-[50px] rounded-2xl border-gray-200 bg-gray-50/50 focus:bg-white focus:border-amber-500 text-sm text-[#1A0D0C] transition-all px-4 font-['Hanken_Grotesk'] font-sans">
+                      <SelectValue placeholder="Select role to grant" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl max-h-72 font-['Hanken_Grotesk'] font-sans">
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-amber-600 px-3 py-1">
+                          Governance
+                        </SelectLabel>
+                        {GOVERNANCE_ROLES_LIST.map((r) => (
+                          <SelectItem key={r.value} value={r.value} className="rounded-xl cursor-pointer">
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-[#D9383A] px-3 py-1 mt-1">
+                          C-Suite Chiefs
+                        </SelectLabel>
+                        {EXECOM_ROLES_LIST.filter((r) => r.category === "c-suite").map((r) => (
+                          <SelectItem key={r.value} value={r.value} className="rounded-xl cursor-pointer">
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-purple-600 px-3 py-1 mt-1">
+                          Executive Officers
+                        </SelectLabel>
+                        {EXECOM_ROLES_LIST.filter((r) => r.category === "officer").map((r) => (
+                          <SelectItem key={r.value} value={r.value} className="rounded-xl cursor-pointer">
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <Button
+                    type="submit"
+                    disabled={assigning || !assignRole || !assignEmail}
+                    suppressHydrationWarning
+                    className="h-[50px] w-full rounded-[31px] bg-[#100A0A] hover:bg-[#2A2020] active:scale-98 text-white font-medium text-sm tracking-tight transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {assigning ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                        <span>Assigning...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 text-amber-400" />
+                        <span>Assign Role</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {assignEmail.trim() && (
+                <div
+                  className={cn(
+                    "p-3 rounded-2xl border text-xs font-medium flex items-center gap-2",
+                    assignTarget
+                      ? "bg-gray-50 border-gray-200 text-gray-700"
+                      : "bg-amber-50/70 border-amber-100 text-amber-700"
+                  )}
+                >
+                  {assignTarget ? (
+                    <>
+                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        {assignTarget.name || "Unnamed User"} is currently{" "}
+                        <Badge
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] border align-middle",
+                            getRoleBadgeStyle(assignTarget.role)
+                          )}
+                          variant="secondary"
+                        >
+                          {getRoleLabel(assignTarget.role)}
+                        </Badge>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <UserX className="w-4 h-4 shrink-0" />
+                      <span>
+                        No portal account matches this email yet. The user must sign in once before a role can be assigned.
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {assignError && (
+                <div className="p-3 rounded-2xl bg-red-50 border border-red-100 text-xs font-medium text-red-600 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 shrink-0" />
+                  {assignError}
+                </div>
+              )}
+
+              {assignSuccess && (
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs font-medium text-emerald-700 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  {assignSuccess}
+                </div>
+              )}
+            </form>
+          </div>
+
+          {/* Current governance roster */}
+          <div className="max-w-[1014px] bg-white rounded-[38px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+              <div>
+                <h2 className="text-2xl font-bold text-[#1A0D0C] tracking-tight flex items-center gap-2">
+                  <Award className="w-5 h-5 text-amber-600" /> Current Governance Roster
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Every account holding a role above Student. Reassign any of them in one click.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchRegisteredUsers}
+                title="Refresh Roster"
+                className="w-10 h-[42px] shrink-0 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-600 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={cn("w-4 h-4", regLoading && "animate-spin text-amber-600")} />
+              </button>
+            </div>
+
+            {regLoading ? (
+              <div className="space-y-3 pt-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-16 bg-gray-100 rounded-[24px] animate-pulse" />
+                ))}
+              </div>
+            ) : governanceUsers.length > 0 ? (
+              <div className="space-y-3 pt-2">
+                {governanceUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="p-4 sm:p-5 rounded-[24px] border border-gray-100/90 hover:border-gray-300 hover:bg-gray-50/60 transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-10 h-10 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-sm group-hover:bg-[#100A0A] group-hover:text-white transition-colors shrink-0">
+                        {(user.name || user.email).charAt(0).toUpperCase()}
+                      </div>
+                      <div className="space-y-0.5 min-w-0">
+                        <p className="text-sm font-bold text-[#1A0D0C] truncate">
+                          {user.name || "Unnamed User"}
+                        </p>
+                        <p className="text-xs text-gray-500 font-medium truncate">{user.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                      <Badge
+                        className={cn(
+                          "px-3.5 py-1 rounded-full text-xs border shadow-2xs tracking-tight flex items-center gap-1.5",
+                          getRoleBadgeStyle(user.role)
+                        )}
+                        variant="secondary"
+                      >
+                        <Sparkles className="w-3 h-3 opacity-70" />
+                        <span>{getRoleLabel(user.role)}</span>
+                      </Badge>
+
+                      <button
+                        type="button"
+                        onClick={() => startRoleAssignment(user.email)}
+                        className="px-3.5 h-9 rounded-xl border border-amber-200/70 bg-amber-50/70 text-[11px] font-bold text-amber-700 hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Change
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-gray-50/50 rounded-[28px] border border-gray-100 my-4 flex flex-col items-center justify-center space-y-3">
+                <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <UserX className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-gray-800 font-bold text-base">No elevated accounts yet</p>
+                  <p className="text-gray-400 text-xs max-w-sm">
+                    Every registered account is still a Student. Assign a role above to build the leadership roster.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Footer Branding */}

@@ -10,14 +10,11 @@ import {
 import { eq, sql, count } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { BadgeCriteria } from "@/lib/points";
+import { isAdminRole } from "@/lib/roles";
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
 }
-
-const execomRoles = [
-  "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-];
 
 // GET /api/badges — list all active badges + earned status
 export async function GET() {
@@ -34,7 +31,7 @@ export async function GET() {
   // If the user is a student, attach earned timestamps
   let earnedMap = new Map<string, Date | null>();
 
-  if (session.user.role === "student" || execomRoles.includes(session.user.role || "")) {
+  if (session.user.role === "student" || isAdminRole(session.user.role)) {
     const [profile] = await db
       .select({ id: studentProfiles.id })
       .from(studentProfiles)
@@ -52,7 +49,7 @@ export async function GET() {
 
   // For execom/faculty — also get count of students who earned each badge
   let badgeCountMap = new Map<string, number>();
-  if (execomRoles.includes(session.user.role || "") || session.user.role === "faculty") {
+  if (isAdminRole(session.user.role) || session.user.role === "faculty") {
     const counts = await db
       .select({
         badgeId: studentBadges.badgeId,
@@ -117,7 +114,7 @@ function validateCriteria(criteria: unknown): criteria is BadgeCriteria {
 
 export async function POST(request: Request) {
   const session = await getSession();
-  if (!session || !execomRoles.includes(session.user.role || "")) {
+  if (!session || !isAdminRole(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

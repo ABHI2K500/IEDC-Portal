@@ -6,6 +6,7 @@ import { eq, count, and, inArray, notInArray, sql, isNull } from "drizzle-orm";
 import { updateEventSchema } from "@/lib/validators";
 import { NextResponse } from "next/server";
 import { awardPoints } from "@/lib/points";
+import { isAdminRole } from "@/lib/roles";
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
@@ -102,12 +103,9 @@ export async function PUT(
   const resolvedParams = await Promise.resolve(params);
   const id = resolvedParams.id;
 
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
   const userRole = (session.user as Record<string, unknown>).role as string;
 
-  if (!execomRoles.includes(userRole)) {
+  if (!isAdminRole(userRole)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

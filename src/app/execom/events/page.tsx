@@ -5,6 +5,7 @@ import { EventCard, EventCardProps } from "@/components/events/event-card";
 import { CreateEventModal } from "@/components/events/create-event-modal";
 import { Plus, Calendar, Sparkles, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAdminSection } from "@/lib/admin-section";
 
 const FILTER_ITEMS = [
   { key: "all", label: "All Events" },
@@ -17,6 +18,7 @@ const FILTER_ITEMS = [
 ];
 
 export default function ExecomEventsPage() {
+  const { base, workspaceLabel } = useAdminSection();
   const [events, setEvents] = useState<EventCardProps[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
@@ -60,7 +62,7 @@ export default function ExecomEventsPage() {
                 posterUrl: e.posterUrl as string,
                 status: e.status as string,
                 isClosed,
-                linkPrefix: "/execom/events",
+                linkPrefix: `${base}/events`,
               };
             }
           );
@@ -75,6 +77,7 @@ export default function ExecomEventsPage() {
   };
 
   useEffect(() => {
+    // `base` is fixed for the mounted route, so one fetch on mount is enough.
     fetchEvents();
   }, []);
 
@@ -98,7 +101,7 @@ export default function ExecomEventsPage() {
         <div className="z-10 max-w-xl space-y-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="px-3 py-0.5 rounded-full bg-[#D9383A]/10 text-[#D9383A] text-[11px] font-bold uppercase tracking-wider">
-              Execom Workspace
+              {workspaceLabel}
             </span>
           </div>
           <h1 className="text-[36px] md:text-[46px] font-semibold text-[#1A0D0C] tracking-[-1.38px] leading-tight">
