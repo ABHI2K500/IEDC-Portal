@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { allowedStaffEmails } from "@/db/schema";
 import { addStaffEmailSchema } from "@/lib/validators";
-import { execomRoles } from "@/proxy";
+import { NODAL_OFFICER_ROLE, isAdminRole, isNodalOfficer } from "@/lib/roles";
 import { NextResponse } from "next/server";
 import { eq, desc } from "drizzle-orm";
 
@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -65,6 +65,14 @@ export async function POST(request: Request) {
     .where(eq(allowedStaffEmails.email, email));
 
   if (existing) {
+    // Execom may not overwrite (and thereby demote) a Nodal Officer entry.
+    if (existing.role === NODAL_OFFICER_ROLE && !isNodalOfficer(role)) {
+      return NextResponse.json(
+        { error: "Only the Nodal Officer can change a Nodal Officer whitelist entry." },
+        { status: 403 }
+      );
+    }
+
     const [updated] = await db
       .update(allowedStaffEmails)
       .set({
@@ -96,7 +104,7 @@ export async function DELETE(request: Request) {
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -108,6 +116,18 @@ export async function DELETE(request: Request) {
     return NextResponse.json(
       { error: "Whitelist ID or Email is required for removal" },
       { status: 400 }
+    );
+  }
+
+  // Execom may not revoke a Nodal Officer entry.
+  const [existingEntry] = id
+    ? await db.select().from(allowedStaffEmails).where(eq(allowedStaffEmails.id, id))
+    : await db.select().from(allowedStaffEmails).where(eq(allowedStaffEmails.email, email!));
+
+  if (existingEntry?.role === NODAL_OFFICER_ROLE && !isNodalOfficer(role)) {
+    return NextResponse.json(
+      { error: "Only the Nodal Officer can revoke a Nodal Officer whitelist entry." },
+      { status: 403 }
     );
   }
 

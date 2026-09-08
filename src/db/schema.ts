@@ -39,6 +39,9 @@ export const userRoleEnum = pgEnum("user_role", [
   "vo",
   "cwit",
   "wit",
+  // Nodal Officer — highest authority in the portal (see src/lib/roles.ts).
+  // Appended last so migrations stay a simple ALTER TYPE ... ADD VALUE.
+  "nodal_officer",
 ]);
 
 export const eventTypeEnum = pgEnum("event_type", [

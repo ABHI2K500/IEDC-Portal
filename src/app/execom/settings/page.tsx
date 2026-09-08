@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { BadgeCriteria } from "@/lib/points";
 import { cn } from "@/lib/utils";
+import { useAdminSection } from "@/lib/admin-section";
 
 // TYPES
 
@@ -273,6 +274,7 @@ function getBadgePoints(criteria: BadgeCriteria): number {
 }
 
 export default function ExecomSettingsPage() {
+  const { workspaceLabel } = useAdminSection();
   const [badges, setBadges] = useState<BadgeData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -385,7 +387,7 @@ export default function ExecomSettingsPage() {
         <div className="z-10 max-w-xl space-y-2">
           <div className="flex items-center gap-2 mb-1">
             <span className="px-3 py-0.5 rounded-full bg-[#D9383A]/10 text-[#D9383A] text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Settings className="w-3.5 h-3.5" /> Execom Workspace
+              <Settings className="w-3.5 h-3.5" /> {workspaceLabel}
             </span>
           </div>
           <h1 className="text-[36px] md:text-[46px] font-semibold text-[#1A0D0C] tracking-[-1.38px] leading-tight">

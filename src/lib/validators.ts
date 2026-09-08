@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ASSIGNABLE_ROLES, EXECOM_ROLES } from "@/lib/roles";
 
 // ============================================================
 // AUTH VALIDATORS
@@ -120,30 +121,22 @@ export const eventFeedbackSchema = z.object({
 // STAFF MANAGEMENT VALIDATORS
 // ============================================================
 
+/**
+ * Roles Execom may whitelist. Deliberately excludes `nodal_officer` — only a
+ * sitting Nodal Officer may appoint another one, via `assignUserRoleSchema`.
+ */
 export const addStaffEmailSchema = z.object({
   email: z.string().email("Please enter a valid email"),
-  role: z.enum([
-    "faculty",
-    "ceo",
-    "cto",
-    "to",
-    "cfo",
-    "fo",
-    "cco",
-    "co",
-    "cio",
-    "io",
-    "cmo",
-    "mo",
-    "coo",
-    "oo",
-    "cso",
-    "so",
-    "cvo",
-    "vo",
-    "cwit",
-    "wit",
-  ]),
+  role: z.enum(["faculty", ...EXECOM_ROLES]),
+});
+
+/**
+ * Nodal Officer only: change the role of an account that already exists in the
+ * portal. Covers every `user_role` value, including `nodal_officer` itself.
+ */
+export const assignUserRoleSchema = z.object({
+  email: z.string().email("Please enter a valid email"),
+  role: z.enum(ASSIGNABLE_ROLES),
 });
 
 // ============================================================
@@ -182,5 +175,6 @@ export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type EventFeedbackInput = z.infer<typeof eventFeedbackSchema>;
 export type AddStaffEmailInput = z.infer<typeof addStaffEmailSchema>;
+export type AssignUserRoleInput = z.infer<typeof assignUserRoleSchema>;
 export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
 export type CreateIdeaInput = z.infer<typeof createIdeaSchema>;

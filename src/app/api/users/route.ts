@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { users, studentProfiles, facultyProfiles } from "@/db/schema";
-import { execomRoles } from "@/proxy";
+import { isAdminRole, isExecomRole } from "@/lib/roles";
 import { NextResponse } from "next/server";
 import { eq, or, ilike, and, desc } from "drizzle-orm";
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
     if (roleFilter && roleFilter !== "all") {
       if (roleFilter === "execom") {
-        filteredUsers = filteredUsers.filter((u) => execomRoles.includes(u.role));
+        filteredUsers = filteredUsers.filter((u) => isExecomRole(u.role));
       } else {
         filteredUsers = filteredUsers.filter((u) => u.role === roleFilter);
       }

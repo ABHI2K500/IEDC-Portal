@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { eventRegistrations, studentProfiles, eventAttendance } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 export async function GET(
   request: Request,
@@ -18,10 +19,7 @@ export async function GET(
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
-  let allowed = role === "faculty" || execomRoles.includes(role);
+  let allowed = role === "faculty" || isAdminRole(role);
 
   if (!allowed) {
     const [profile] = await db
@@ -37,7 +35,8 @@ export async function GET(
           and(
             eq(eventRegistrations.eventId, id),
             eq(eventRegistrations.studentId, profile.id),
-            eq(eventRegistrations.role, "volunteer")
+            eq(eventRegistrations.role, "volunteer"),
+            isNull(eventRegistrations.cancelledAt)
           )
         );
       if (volunteerReg) {

@@ -5,16 +5,13 @@ import { badges } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type { BadgeCriteria } from "@/lib/points";
+import { isAdminRole } from "@/lib/roles";
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
 }
 
 const VALID_CRITERIA_TYPES = new Set(["points", "event_count", "project_count", "volunteer_count", "streak"]);
-
-const execomRoles = [
-  "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-];
 
 function validateCriteria(criteria: unknown): criteria is BadgeCriteria {
   if (!criteria || typeof criteria !== "object") return false;
@@ -33,7 +30,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session || !execomRoles.includes(session.user.role || "")) {
+  if (!session || !isAdminRole(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -94,7 +91,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session || !execomRoles.includes(session.user.role || "")) {
+  if (!session || !isAdminRole(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { eq, count, sql, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 export async function GET() {
   try {
@@ -20,30 +21,8 @@ export async function GET() {
     }
 
     const role = (session.user as Record<string, unknown>).role as string;
-    const allowedRoles = [
-      "faculty",
-      "ceo",
-      "cto",
-      "to",
-      "cfo",
-      "fo",
-      "cco",
-      "co",
-      "cio",
-      "io",
-      "cmo",
-      "mo",
-      "coo",
-      "oo",
-      "cso",
-      "so",
-      "cvo",
-      "vo",
-      "cwit",
-      "wit",
-    ];
 
-    if (!allowedRoles.includes(role)) {
+    if (role !== "faculty" && !isAdminRole(role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -6,6 +6,7 @@ import { eq, desc, and, sql, count, inArray, gte, or, notInArray } from "drizzle
 import { createEventSchema } from "@/lib/validators";
 import { NextResponse } from "next/server";
 import { awardPoints } from "@/lib/points";
+import { isAdminRole } from "@/lib/roles";
 
 async function getSession() {
   return await auth.api.getSession({ headers: await headers() });
@@ -60,10 +61,7 @@ export async function POST(request: Request) {
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -107,7 +105,7 @@ export async function POST(request: Request) {
     })
     .returning();
 
-  if (execomRoles.includes(role) && volunteerEmails && volunteerEmails.length > 0) {
+  if (isAdminRole(role) && volunteerEmails && volunteerEmails.length > 0) {
     const cleanedEmails = volunteerEmails.map((e) => e.trim().toLowerCase());
     const profiles = await db
       .select({ studentId: studentProfiles.id })

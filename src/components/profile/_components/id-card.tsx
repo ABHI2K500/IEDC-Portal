@@ -101,6 +101,7 @@ export function formatDesignation(desig?: string | null): string {
   const lower = trimmed.toLowerCase();
 
   const mapping: Record<string, string> = {
+    nodal_officer: "Nodal Officer",
     ceo: "Chief Executive Officer",
     cto: "Chief Technical Officer",
     cco: "Chief Creative Officer",

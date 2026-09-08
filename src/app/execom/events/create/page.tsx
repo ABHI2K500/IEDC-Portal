@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { PosterUpload } from "@/components/events/poster-upload";
+import { useAdminSection } from "@/lib/admin-section";
 
 export default function CreateEventPage() {
+  const { base } = useAdminSection();
   const router = useRouter();
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -67,7 +69,7 @@ export default function CreateEventPage() {
       });
 
       if (res.ok) {
-        router.push("/execom/events");
+        router.push(`${base}/events`);
         router.refresh();
       } else {
         const result = await res.json();
@@ -83,7 +85,7 @@ export default function CreateEventPage() {
   return (
     <div className="max-w-3xl space-y-6 pb-12">
       <Link
-        href="/execom/events"
+        href={`${base}/events`}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#1a1a2e] transition-colors w-fit"
       >
         <ArrowLeft className="w-4 h-4" />

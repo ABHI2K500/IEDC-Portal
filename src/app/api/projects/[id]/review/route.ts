@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { reviewProjectSchema } from "@/lib/validators";
 import { awardPoints } from "@/lib/points";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 export async function PATCH(
   request: Request,
@@ -17,10 +18,7 @@ export async function PATCH(
   }
 
   const role = (session.user as Record<string, unknown>).role as string;
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
-  if (!execomRoles.includes(role)) {
+  if (!isAdminRole(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -29,6 +29,8 @@ export interface EventRegistrationsTableProps {
   venue?: string | null;
   startDatetime?: string;
   initialRegistrations?: Registration[];
+  /** Volunteers may read the roster but not export it. */
+  canExport?: boolean;
 }
 
 export function EventRegistrationsTable({
@@ -38,6 +40,7 @@ export function EventRegistrationsTable({
   venue,
   startDatetime,
   initialRegistrations,
+  canExport = true,
 }: EventRegistrationsTableProps) {
   const [registrations, setRegistrations] = useState<Registration[]>(
     initialRegistrations || []
@@ -323,7 +326,7 @@ export function EventRegistrationsTable({
           </div>
         </div>
 
-        {registrations.length > 0 && (
+        {canExport && registrations.length > 0 && (
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <Button
               onClick={downloadPDF}

@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { signOut, useSession } from "@/lib/auth-client";
 import { fetchProfilePoints } from "@/lib/profile-cache";
+import { getRoleBadgeText, isExecomRole, isNodalOfficer } from "@/lib/roles";
 
 interface NavItem {
   label: string;
@@ -56,19 +57,24 @@ export function Sidebar({ items, role }: SidebarProps) {
 
   const name = session?.user?.name || "User";
   const userRole = ((session?.user as Record<string, unknown>)?.role as string) || role;
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
-  const isExecom = execomRoles.includes(userRole || "");
-  const roleDisplay = isExecom ? (userRole || "").toUpperCase() : "";
+  const isExecom = isExecomRole(userRole);
+  const isNodal = isNodalOfficer(userRole);
+  // Execom and the Nodal Officer both get a staff workspace + role chip.
+  const isStaff = isExecom || isNodal;
+  const roleDisplay = isStaff ? getRoleBadgeText(userRole) : "";
+  const profileHref = isNodal
+    ? "/nodal/profile"
+    : isExecom
+      ? "/execom/profile"
+      : "/student/profile";
 
   useEffect(() => {
-    if (session?.user && (userRole === "student" || isExecom)) {
+    if (session?.user && (userRole === "student" || isStaff)) {
       fetchProfilePoints().then((pts) => {
         if (pts !== null) setPoints(pts);
       });
     }
-  }, [session, userRole, isExecom]);
+  }, [session, userRole, isStaff]);
 
   const handleSignOut = async () => {
     try {
@@ -186,7 +192,7 @@ export function Sidebar({ items, role }: SidebarProps) {
       <div className="px-2 lg:px-6 pb-6 pt-4 border-t border-[#2B2B2B] space-y-3">
         {session?.user && (
           <Link
-            href={isExecom ? "/execom/profile" : "/student/profile"}
+            href={profileHref}
             className={cn(
               "hidden lg:flex items-center gap-3.5 h-[54px] px-[16px] rounded-[30px] transition-all duration-300 transform active:scale-95 cursor-pointer group",
               pathname.includes("/profile")
@@ -249,6 +255,14 @@ export const execomNavItems: NavItem[] = [
   { label: "Events", href: "/execom/events", icon: <Calendar /> },
   { label: "Projects", href: "/execom/projects", icon: <FolderOpen /> },
   { label: "Settings", href: "/execom/settings", icon: <Settings /> },
+];
+
+export const nodalNavItems: NavItem[] = [
+  { label: "Analytics", href: "/nodal/analytics", icon: <BarChart3 /> },
+  { label: "Users", href: "/nodal/users", icon: <Users /> },
+  { label: "Events", href: "/nodal/events", icon: <Calendar /> },
+  { label: "Projects", href: "/nodal/projects", icon: <FolderOpen /> },
+  { label: "Settings", href: "/nodal/settings", icon: <Settings /> },
 ];
 
 export const facultyNavItems: NavItem[] = [

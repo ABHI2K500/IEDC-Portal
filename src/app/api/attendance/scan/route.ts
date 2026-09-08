@@ -1,11 +1,12 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { eventAttendance, eventRegistrations, studentProfiles, events } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eventAttendance, eventRegistrations, studentProfiles, events, pointsLog } from "@/db/schema";
+import { eq, and, isNull } from "drizzle-orm";
 import { verifyDynamicQRPayload, decryptPayload } from "@/lib/qr";
 import { awardPoints } from "@/lib/points";
 import { NextResponse } from "next/server";
+import { isAdminRole } from "@/lib/roles";
 
 const CIPHER_PREFIX = "IEDC:";
 
@@ -15,12 +16,9 @@ export async function POST(request: Request) {
 
   const { qrData, eventId } = await request.json();
 
-  const execomRoles = [
-    "ceo", "cto", "to", "cfo", "fo", "cco", "co", "cio", "io", "cmo", "mo", "coo", "oo", "cso", "so", "cvo", "vo", "cwit", "wit"
-  ];
   const userRole = (session.user as Record<string, unknown>).role as string;
 
-  let hasAccess = execomRoles.includes(userRole);
+  let hasAccess = isAdminRole(userRole);
 
   if (!hasAccess) {
     const [profile] = await db
@@ -36,7 +34,8 @@ export async function POST(request: Request) {
           and(
             eq(eventRegistrations.eventId, eventId),
             eq(eventRegistrations.studentId, profile.id),
-            eq(eventRegistrations.role, "volunteer")
+            eq(eventRegistrations.role, "volunteer"),
+            isNull(eventRegistrations.cancelledAt)
           )
         );
       if (volunteerReg) {
@@ -128,14 +127,29 @@ export async function POST(request: Request) {
       ? (event.volunteerPoints ?? 20)
       : (event.participationPoints ?? 10);
 
-  await awardPoints({
-    studentId: student.id,
-    activityType,
-    referenceId: eventId,
-    referenceType: "event",
-    awardedBy: session.user.id,
-    customPoints,
-  });
+  // Volunteers are already awarded when they are assigned to the event, so only
+  // award if this student has no points logged for this activity on this event.
+  const [alreadyAwarded] = await db
+    .select({ id: pointsLog.id })
+    .from(pointsLog)
+    .where(
+      and(
+        eq(pointsLog.studentId, student.id),
+        eq(pointsLog.activityType, activityType),
+        eq(pointsLog.referenceId, eventId)
+      )
+    );
+
+  if (!alreadyAwarded) {
+    await awardPoints({
+      studentId: student.id,
+      activityType,
+      referenceId: eventId,
+      referenceType: "event",
+      awardedBy: session.user.id,
+      customPoints,
+    });
+  }
 
   return NextResponse.json({
     success: true,
